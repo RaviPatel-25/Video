@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Video Call</title>
+    <style>
+        body { text-align: center; font-family: Arial, sans-serif; }
+        video { width: 45%; margin: 10px; border: 2px solid black; }
+        textarea { width: 80%; height: 100px; }
+    </style>
+</head>
+<body>
+    <h2>WebRTC Video Call (No Server)</h2>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+
+    <h3>Offer / Answer</h3>
+    <textarea id="offer" placeholder="Paste Offer/Answer here..."></textarea><br>
+    <button onclick="createOffer()">Create Offer</button>
+    <button onclick="createAnswer()">Create Answer</button>
+    <button onclick="setRemote()">Set Remote Description</button>
+
+    <h3>ICE Candidates</h3>
+    <textarea id="iceCandidates" placeholder="Paste ICE candidates here..."></textarea><br>
+    <button onclick="addIceCandidate()">Add ICE Candidate</button>
+
+    <script>
+        let localStream, remoteStream;
+        let peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        // Start video
+        async function startVideo() {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById("localVideo").srcObject = localStream;
+            remoteStream = new MediaStream();
+            document.getElementById("remoteVideo").srcObject = remoteStream;
+
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            peerConnection.ontrack = event => {
+                event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+            };
+
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    document.getElementById("iceCandidates").value = JSON.stringify(event.candidate);
+                }
+            };
+        }
+
+        // Create Offer
+        async function createOffer() {
+            let offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            document.getElementById("offer").value = JSON.stringify(offer);
+        }
+
+        // Create Answer
+        async function createAnswer() {
+            let offer = JSON.parse(document.getElementById("offer").value);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            let answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            document.getElementById("offer").value = JSON.stringify(answer);
+        }
+
+        // Set Remote Description
+        async function setRemote() {
+            let answer = JSON.parse(document.getElementById("offer").value);
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        // Add ICE Candidate
+        async function addIceCandidate() {
+            let candidate = JSON.parse(document.getElementById("iceCandidates").value);
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+
+        startVideo();
+    </script>
+</body>
+</html>
